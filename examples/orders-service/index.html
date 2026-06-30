@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>orders-service — architecture blueprint (example) — aerial</title><style>  :root { --blocker:#cf222e; --high:#bc4c00; --medium:#9a6700; --low:#0969da; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    max-width: 1040px; margin: 24px auto; padding: 0 18px; line-height: 1.55; color:#1f2328; background:#fff; }
+  h1 { font-size:26px; border-bottom:1px solid #d0d7de; padding-bottom:8px; }
+  h2 { font-size:20px; margin-top:30px; border-bottom:1px solid #eaecef; padding-bottom:4px; }
+  h3 { font-size:16px; margin-top:20px; }
+  code { background:#f6f8fa; padding:2px 5px; border-radius:5px; font-size:85%; }
+  pre code { background:none; padding:0; }
+  table { border-collapse:collapse; margin:14px 0; } th,td { border:1px solid #d0d7de; padding:6px 11px; }
+  th { background:#f6f8fa; }
+  .provenance { background:#f6f8fa; border:1px solid #d0d7de; border-radius:8px; padding:8px 14px; font-size:13px; color:#57606a; margin-bottom:18px; }
+  .mermaid { border:1px solid #eaecef; border-radius:8px; margin:16px 0; background:#fbfcfd; overflow:hidden; }
+  .mermaid svg { width:100%; height:520px; }
+  .controls { position:sticky; top:0; z-index:50; background:#fff; padding:8px 0; border-bottom:1px solid #eaecef; display:flex; gap:8px; align-items:center; }
+  .btn { cursor:pointer; border:1px solid #d0d7de; background:#f6f8fa; border-radius:6px; padding:5px 12px; font-size:13px; }
+  .btn:hover { background:#eaeef2; }
+  .hint { font-size:12px; color:#8b949e; }
+  #findings.hidden { display:none; }
+  .sev { border-left:4px solid #d0d7de; padding-left:10px; margin:8px 0; }
+  .sev-blocker { border-color:var(--blocker); } .sev-high { border-color:var(--high); }
+  .sev-medium { border-color:var(--medium); } .sev-low { border-color:var(--low); }
+  .badge { font-size:11px; font-weight:600; text-transform:uppercase; padding:1px 6px; border-radius:10px; color:#fff; margin-right:6px; }
+  .badge-blocker { background:var(--blocker); } .badge-high { background:var(--high); }
+  .badge-medium { background:var(--medium); } .badge-low { background:var(--low); }
+</style></head><body>
+<div class="controls"><button class="btn" id="toggle-findings">Toggle findings</button><span class="hint">scroll to zoom · drag to pan · click a node to open its file</span></div>
+<div class="provenance">aerial blueprint · derived-from a1b2c3d · diagrams zoom/pan · nodes open code · toggle findings above.</div>
+<h1 id="orders-service-architecture-blueprint-example">orders-service — architecture blueprint (example)</h1>
+<blockquote>
+<p>Synthetic demo of the aerial format. The diagrams, flow, and findings below are
+illustrative — in a real run every node and finding cites a real <code>path:line</code>.
+Click links resolve against the analyzed repo (here they are placeholders).</p>
+</blockquote>
+<h2 id="l1-system-context">L1 — System context</h2>
+<p><pre class="mermaid">flowchart LR
+  client[Web / Mobile clients]:::ext
+  api[orders-service API]:::sys
+  worker[orders-service worker]:::sys
+  db[(PostgreSQL)]:::data
+  mq[(RabbitMQ)]:::data
+  pay[Payment provider]:::ext
+  client -->|REST| api
+  api --> db
+  api -->|publish| mq --> worker
+  worker --> db
+  api -->|charge| pay
+  classDef sys fill:#dbeafe,stroke:#2563eb;
+  classDef data fill:#e9ecef,stroke:#868e96;
+  classDef ext fill:#f8f9fa,stroke:#adb5bd;</pre></p>
+<h2 id="l3-components">L3 — Components</h2>
+<p><pre class="mermaid">flowchart TB
+  app[app entrypoint]
+  ord[orders]:::hot
+  cart[cart]
+  pay[payments]
+  inv[inventory]
+  app --> ord & cart & pay & inv
+  ord --> pay & inv
+  click ord href "src/orders/orders.service.ts"
+  click pay href "src/payments/payments.service.ts"
+  classDef hot fill:#ffe3e3,stroke:#cf222e,stroke-width:2px;</pre></p>
+<h2 id="findings">Findings</h2>
+<ul>
+<li><strong>[high]</strong> <code>orders</code> is a churn × centrality hotspot — high commit churn AND
+  high fan-in (cart, payments, inventory all route through it). Decompose by
+  responsibility. <em>Evidence: 88 churn touches; in-degree 3.</em></li>
+<li><strong>[medium]</strong> <strong>Hidden coupling</strong>: <code>payments.service</code> co-changes with
+  <code>inventory.reservation</code> in 6 commits despite no structural link — a checkout
+  invariant is split across two modules. <em>Evidence: co_change confidence 0.85.</em></li>
+<li><strong>[medium]</strong> Checkout flow charges the payment provider before the DB
+  transaction commits — a failure between the two leaves a charge with no order.
+  <em>Evidence: see flow below.</em></li>
+</ul>
+<h2 id="flows">Flows</h2>
+<h3 id="checkout">Checkout</h3>
+<p><pre class="mermaid">sequenceDiagram
+  participant C as Client
+  participant O as orders.service
+  participant P as payments
+  participant Pay as Payment provider
+  participant DB as PostgreSQL
+  C->>O: POST /checkout
+  O->>P: charge
+  P->>Pay: charge card
+  Pay-->>P: ok
+  O->>DB: insert order
+  Note over O,DB: edge case — charge succeeds, DB insert fails → orphan charge</pre></p>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.3/dist/mermaid.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
+<script>  mermaid.initialize({ startOnLoad: false, securityLevel: 'loose', theme: 'neutral' });
+  async function render() {
+    await mermaid.run({ querySelector: '.mermaid' });
+    document.querySelectorAll('.mermaid svg').forEach(svg => {
+      svg.removeAttribute('height'); svg.style.height = '520px';
+      try { svgPanZoom(svg, { controlIconsEnabled: true, fit: true, center: true, minZoom: 0.3 }); }
+      catch (e) {}
+    });
+  }
+  function wrapFindings() {
+    const h = [...document.querySelectorAll('h2')].find(x => /findings/i.test(x.textContent));
+    if (!h) return null;
+    const box = document.createElement('div'); box.id = 'findings';
+    const kids = []; let n = h.nextElementSibling;
+    while (n && n.tagName !== 'H2') { kids.push(n); n = n.nextElementSibling; }
+    h.after(box); kids.forEach(k => box.appendChild(k));
+    return box;
+  }
+  function colorSeverities(box) {
+    if (!box) return;
+    box.querySelectorAll('li, p').forEach(el => {
+      const m = el.textContent.match(/\[(blocker|high|medium|low)\]/i);
+      if (!m) return;
+      const sev = m[1].toLowerCase();
+      el.classList.add('sev', 'sev-' + sev);
+      const badge = document.createElement('span');
+      badge.className = 'badge badge-' + sev; badge.textContent = sev;
+      el.insertBefore(badge, el.firstChild);
+    });
+  }
+  window.addEventListener('DOMContentLoaded', () => {
+    const box = wrapFindings(); colorSeverities(box);
+    const t = document.getElementById('toggle-findings');
+    if (t && box) t.addEventListener('click', () => box.classList.toggle('hidden'));
+    render();
+  });
+</script>
+</body></html>

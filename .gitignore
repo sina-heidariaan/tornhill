@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.mypy_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated blueprints in consuming projects (keep examples/ committed)
+/aerial/

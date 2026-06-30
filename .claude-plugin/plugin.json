@@ -1,0 +1,21 @@
+{
+  "name": "aerial",
+  "version": "0.1.0",
+  "description": "Critique-led architecture views for Claude Code: a high-altitude, code- and git-grounded system map whose headline output is a findings overlay (hidden coupling, hotspots, SPOFs, edge-case risks). Renders to an interactive HTML twin with zoom, click-to-code, and a findings toggle.",
+  "author": {
+    "name": "midxdle"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/midxdle/aerial",
+  "keywords": [
+    "architecture",
+    "diagram",
+    "c4",
+    "code-analysis",
+    "git-hotspots",
+    "temporal-coupling",
+    "system-design",
+    "claude-code",
+    "mermaid"
+  ]
+}
