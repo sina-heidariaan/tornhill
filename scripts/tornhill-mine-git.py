@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-aerial-mine-git — extract architecture-relevant signals from a project's git
+tornhill-mine-git — extract architecture-relevant signals from a project's git
 history that a static code snapshot cannot reveal.
 
-These feed the aerial findings overlay:
+These feed the tornhill findings overlay:
   - churn          : files touched most often (change pressure)
   - co_change      : file pairs that change together, esp. across modules
                      (HIDDEN COUPLING)
@@ -17,7 +17,7 @@ behavioral-code-analysis work (Code Maat / "Your Code as a Crime Scene").
 Pure stdlib. Read-only. No network. Operates on ONE git repo.
 
 Usage:
-    python aerial-mine-git.py <project-dir> [options]
+    python tornhill-mine-git.py <project-dir> [options]
 
 Options:
     --since <git-date>   default: "12 months ago"
@@ -152,6 +152,7 @@ def mine(repo: Path, args) -> dict:
     return {
         "project": str(repo),
         "since": args.since,
+        "module_depth": md,
         "commits_scanned": commits,
         "churn": [{"path": p, "touches": n} for p, n in churn_top],
         "co_change": cochange,

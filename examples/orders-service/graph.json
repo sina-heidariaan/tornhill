@@ -1,0 +1,25 @@
+{
+  "schema": "tornhill.graph/v1",
+  "project": "orders-service (synthetic example)",
+  "derived_from": "a1b2c3d",
+  "producer": "import-miner",
+  "centrality_quality": "approx",
+  "module_depth": 2,
+  "languages": ["ts"],
+  "dropped": { "external": 37, "unresolved_relative": 2, "alias": 1 },
+  "nodes": [
+    { "id": "src_app", "path": "src/app", "kind": "module", "files": 1, "degree_in": 0, "degree_out": 2, "degree": 2 },
+    { "id": "src_cart", "path": "src/cart", "kind": "module", "files": 2, "degree_in": 1, "degree_out": 1, "degree": 2 },
+    { "id": "src_inventory", "path": "src/inventory", "kind": "module", "files": 2, "degree_in": 1, "degree_out": 1, "degree": 2 },
+    { "id": "src_orders", "path": "src/orders", "kind": "module", "files": 4, "degree_in": 3, "degree_out": 1, "degree": 4 },
+    { "id": "src_payments", "path": "src/payments", "kind": "module", "files": 3, "degree_in": 1, "degree_out": 1, "degree": 2 }
+  ],
+  "edges": [
+    { "src": "src_app", "dst": "src_cart", "kind": "import", "weight": 1, "cite": "src/app/main.ts:3" },
+    { "src": "src_app", "dst": "src_inventory", "kind": "import", "weight": 1, "cite": "src/app/main.ts:5" },
+    { "src": "src_cart", "dst": "src_orders", "kind": "import", "weight": 2, "cite": "src/cart/cart.service.ts:2" },
+    { "src": "src_inventory", "dst": "src_orders", "kind": "import", "weight": 1, "cite": "src/inventory/reservation.ts:4" },
+    { "src": "src_orders", "dst": "src_payments", "kind": "import", "weight": 3, "cite": "src/orders/orders.service.ts:6" },
+    { "src": "src_payments", "dst": "src_orders", "kind": "import", "weight": 1, "cite": "src/payments/payments.service.ts:8" }
+  ]
+}

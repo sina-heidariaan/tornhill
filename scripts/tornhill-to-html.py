@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-aerial-to-html — render an aerial markdown blueprint into an interactive HTML twin.
+tornhill-to-html — render an tornhill markdown blueprint into an interactive HTML twin.
 
 Adds the three things that make the view analyzable rather than a static picture:
   - ZOOM/PAN on every Mermaid diagram (svg-pan-zoom).
@@ -10,24 +10,30 @@ Adds the three things that make the view analyzable rather than a static picture
     item is colored by its `[severity]` tag (blocker/high/medium/low).
 
 Usage:
-    python aerial-to-html.py [files...] [options]
+    python tornhill-to-html.py [files...] [options]
       (no files = render all *.md under --out-dir)
 
 Options:
-    --out-dir <dir>                 where blueprints live (default: ./aerial)
+    --out-dir <dir>                 where blueprints live (default: ./tornhill)
     --code-link vscode|file|github  how node clicks open code (default vscode)
     --repo-root <dir>               repo root for resolving links (default: CWD)
     --github-base <url>             e.g. https://github.com/org/repo/blob/main
+    --assets cdn|inline|local       where viewer JS comes from (default cdn)
+    --vendor-dir <dir>              vendored JS for inline/local (default: ./vendor)
 
 Requires: markdown, pyyaml   (pip install markdown pyyaml)
 
-Security: no network at generation time. The OUTPUT html loads two pinned JS
-libraries from a CDN to render diagrams in the viewer's browser — see README
-("Security & trust") for the offline/vendoring option.
+Security: no network at generation time. The viewer JS (mermaid, svg-pan-zoom)
+that renders diagrams in the browser comes from one of three sources:
+    cdn     pinned + SRI-verified CDN <script> tags (default; fetches at view time)
+    inline  JS embedded in the .html — self-contained, ZERO third-party fetch
+    local   relative <script src="vendor/...">  — zero third-party fetch, multi-file
+For inline/local, run tornhill-vendor-assets.py once to populate ./vendor.
 """
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 from pathlib import Path
@@ -45,10 +51,18 @@ for _s in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError):
         pass
 
-# Pinned exact versions for reproducibility (a version range would let the CDN
-# silently change the bytes you load).
+# Pinned exact versions + SRI hashes. A version range would let the CDN silently
+# change the bytes you load; the integrity hash makes a swapped payload fail loudly.
+# Kept in sync with tornhill-vendor-assets.py via the shared ASSETS table below.
 MERMAID_CDN = "https://cdn.jsdelivr.net/npm/mermaid@10.9.3/dist/mermaid.min.js"
 PANZOOM_CDN = "https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"
+MERMAID_SRI = "sha384-R63zfMfSwJF4xCR11wXii+QUsbiBIdiDzDbtxia72oGWfkT7WHJfmD/I/eeHPJyT"
+PANZOOM_SRI = "sha384-yc/c2Lk1s2V2ir1rxvjo8YyVD9PlOlYTqpNr3Wm1WIuAA30GlDYNx6U5104OiavY"
+# (name, cdn url, sri) — order is load order: mermaid before svg-pan-zoom.
+ASSETS = (
+    ("mermaid.min.js", MERMAID_CDN, MERMAID_SRI),
+    ("svg-pan-zoom.min.js", PANZOOM_CDN, PANZOOM_SRI),
+)
 
 MERMAID_BLOCK = re.compile(r"```mermaid\s*\n(.*?)\n```", re.DOTALL)
 HREF_RE = re.compile(r'(href\s+")([^"]+)(")')
@@ -121,19 +135,67 @@ JS = """\
 """
 
 
+def build_lib_scripts(assets, vendor_dir, out_path):
+    """Return the <script> tags that load mermaid + svg-pan-zoom for `assets` mode.
+
+    cdn    -> pinned, SRI-verified, crossorigin CDN tags (fetches at view time).
+    inline -> the vendored bytes embedded directly (self-contained, zero fetch).
+    local  -> relative src= to the vendor dir alongside the output (zero fetch).
+    """
+    if assets == "cdn":
+        return "\n".join(
+            f'<script src="{url}" integrity="{sri}" crossorigin="anonymous"></script>'
+            for name, url, sri in ASSETS
+        )
+
+    missing = [name for name, _u, _s in ASSETS if not (vendor_dir / name).is_file()]
+    if missing:
+        raise SystemExit(
+            f"--assets {assets} needs vendored libs but {vendor_dir} is missing: "
+            f"{', '.join(missing)}\nRun:  python tornhill-vendor-assets.py "
+            f"--vendor-dir {vendor_dir}"
+        )
+
+    if assets == "inline":
+        tags = []
+        for name, _u, _s in ASSETS:
+            js = (vendor_dir / name).read_text(encoding="utf-8")
+            # Guard against an accidental </script> in the payload closing our tag.
+            js = js.replace("</script>", "<\\/script>")
+            tags.append(f"<script>{js}</script>")
+        return "\n".join(tags)
+
+    # local: reference vendor files relative to the output html
+    rel = Path(os.path.relpath(vendor_dir.resolve(), out_path.parent.resolve()))
+    return "\n".join(
+        f'<script src="{(rel / name).as_posix()}"></script>' for name, _u, _s in ASSETS
+    )
+
+
+LINE_SUFFIX = re.compile(r":(\d+)(?::\d+)?$")
+
+
 def to_code_link(rel, md_path, mode, repo_root, gh_base):
     if rel.startswith(SKIP_SCHEMES):
         return None
+    # L4 deep-dive nodes cite `path:line` (or `path:line:col`); split off the
+    # anchor so the file still resolves, then re-attach it per link mode.
+    line = None
+    m = LINE_SUFFIX.search(rel)
+    if m:
+        rel, line = rel[: m.start()], m.group(1)
     target = (md_path.parent / rel).resolve()
     if not target.is_file():  # grounding: only link to files that exist
         return None
     if mode == "vscode":
-        return f"vscode://file/{target.as_posix()}"
+        link = f"vscode://file/{target.as_posix()}"
+        return f"{link}:{line}" if line else link
     if mode == "github" and gh_base:
         try:
-            return f"{gh_base.rstrip('/')}/{target.relative_to(repo_root).as_posix()}"
+            link = f"{gh_base.rstrip('/')}/{target.relative_to(repo_root).as_posix()}"
         except ValueError:
             return None
+        return f"{link}#L{line}" if line else link
     return target.as_uri()
 
 
@@ -155,8 +217,10 @@ def split_frontmatter(text):
     return {}, text
 
 
-def render_one(md_path, mode, repo_root, gh_base):
+def render_one(md_path, mode, repo_root, gh_base, assets, vendor_dir):
     meta, body = split_frontmatter(md_path.read_text(encoding="utf-8"))
+    out = md_path.with_suffix(".html")
+    lib_scripts = build_lib_scripts(assets, vendor_dir, out)
     blocks = []
 
     def stash(m):
@@ -171,7 +235,7 @@ def render_one(md_path, mode, repo_root, gh_base):
     title = meta.get("title", md_path.stem)
     stamp = meta.get("derived-from", "")
     provenance = (
-        f'<div class="provenance">aerial blueprint · '
+        f'<div class="provenance">tornhill blueprint · '
         f'{("derived-from " + stamp) if stamp else "snapshot"} · '
         f'diagrams zoom/pan · nodes open code · toggle findings above.</div>'
     )
@@ -184,30 +248,33 @@ def render_one(md_path, mode, repo_root, gh_base):
     html = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{title} — aerial</title><style>{CSS}</style></head><body>
+<title>{title} — tornhill</title><style>{CSS}</style></head><body>
 {controls}
 {provenance}
 {html_body}
-<script src="{MERMAID_CDN}"></script>
-<script src="{PANZOOM_CDN}"></script>
+{lib_scripts}
 <script>{JS}</script>
 </body></html>
 """
-    out = md_path.with_suffix(".html")
     out.write_text(html, encoding="utf-8")
     return out
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Render aerial markdown to interactive HTML.")
+    ap = argparse.ArgumentParser(description="Render tornhill markdown to interactive HTML.")
     ap.add_argument("files", nargs="*", help="md files (default: all *.md under --out-dir)")
-    ap.add_argument("--out-dir", default="aerial", help="blueprint dir (default: ./aerial)")
+    ap.add_argument("--out-dir", default="tornhill", help="blueprint dir (default: ./tornhill)")
     ap.add_argument("--code-link", choices=["vscode", "file", "github"], default="vscode")
     ap.add_argument("--repo-root", default=".", help="repo root for github links (default: CWD)")
     ap.add_argument("--github-base", default=None)
+    ap.add_argument("--assets", choices=["cdn", "inline", "local"], default="cdn",
+                    help="viewer JS source (default cdn; inline/local need ./vendor)")
+    ap.add_argument("--vendor-dir", default="vendor",
+                    help="vendored JS dir for inline/local (default: ./vendor)")
     args = ap.parse_args()
 
     repo_root = Path(args.repo_root).resolve()
+    vendor_dir = Path(args.vendor_dir)
     if args.files:
         targets = [Path(a).resolve() for a in args.files]
     else:
@@ -220,8 +287,9 @@ def main() -> int:
         print("nothing to render", file=sys.stderr)
         return 1
     for md in targets:
-        out = render_one(md, args.code_link, repo_root, args.github_base)
-        print(f"rendered {out}  (links: {args.code_link})")
+        out = render_one(md, args.code_link, repo_root, args.github_base,
+                         args.assets, vendor_dir)
+        print(f"rendered {out}  (links: {args.code_link}, assets: {args.assets})")
     return 0
 
 
