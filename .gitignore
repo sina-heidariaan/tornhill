@@ -9,4 +9,12 @@ __pycache__/
 Thumbs.db
 
 # Generated blueprints in consuming projects (keep examples/ committed)
-/aerial/
+/tornhill/
+
+# Vendored viewer JS (populate with: python scripts/tornhill-vendor-assets.py)
+/vendor/
+
+# Private working docs (handoff, roadmap, internal notes) — incl. internal/validation/,
+# the RAW real-repo runs with real path:line data. Only the sanitized
+# examples/benchmark.md is public.
+/internal/

@@ -1,12 +1,12 @@
 {
-  "name": "aerial",
+  "name": "tornhill",
   "version": "0.1.0",
-  "description": "Critique-led architecture views for Claude Code: a high-altitude, code- and git-grounded system map whose headline output is a findings overlay (hidden coupling, hotspots, SPOFs, edge-case risks). Renders to an interactive HTML twin with zoom, click-to-code, and a findings toggle.",
+  "description": "Critique-led architecture views for Claude Code: a high-altitude, code- and git-grounded system map whose headline output is a findings overlay (hidden coupling, hotspots, SPOFs, performance/efficiency/correctness pains, edge-case risks). Ships a companion /audit skill for security, privacy/compliance, legal, and cost review. Renders to an interactive HTML twin with zoom, click-to-code, and a findings toggle.",
   "author": {
-    "name": "midxdle"
+    "name": "sina-heidariaan"
   },
-  "license": "MIT",
-  "homepage": "https://github.com/midxdle/aerial",
+  "license": "MIT OR Apache-2.0",
+  "homepage": "https://github.com/sina-heidariaan/tornhill",
   "keywords": [
     "architecture",
     "diagram",
@@ -15,6 +15,8 @@
     "git-hotspots",
     "temporal-coupling",
     "system-design",
+    "compliance",
+    "security-review",
     "claude-code",
     "mermaid"
   ]

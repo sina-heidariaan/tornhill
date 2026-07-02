@@ -1,0 +1,17 @@
+{
+  "name": "tornhill",
+  "owner": {
+    "name": "sina-heidariaan"
+  },
+  "metadata": {
+    "description": "Critique-led architecture views and a security/privacy/compliance/cost audit for Claude Code, grounded in real code and git history.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "tornhill",
+      "source": ".",
+      "description": "Two skills: /tornhill (high-altitude architecture view + findings overlay, with a deep per-subsystem mode) and /audit (security · privacy/compliance · legal · cost review grounded in real, named standards)."
+    }
+  ]
+}
