@@ -1,0 +1,10 @@
+tornhill
+Copyright 2026 sina-heidariaan
+
+This product is dual-licensed under the MIT license (LICENSE-MIT) or the
+Apache License, Version 2.0 (LICENSE-APACHE), at your option.
+
+Analytical concepts in the git-signal engine (temporal coupling, hotspots) are
+inspired by the public behavioral-code-analysis work of Adam Tornhill (Code Maat,
+"Your Code as a Crime Scene"). This project is an independent homage and is not
+affiliated with or endorsed by Adam Tornhill, Code Maat, or CodeScene.
