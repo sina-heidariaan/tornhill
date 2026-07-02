@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tornhill on real code — a sanitized benchmark — tornhill</title><style>  :root { --blocker:#cf222e; --high:#bc4c00; --medium:#9a6700; --low:#0969da; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    max-width: 1040px; margin: 24px auto; padding: 0 18px; line-height: 1.55; color:#1f2328; background:#fff; }
+  h1 { font-size:26px; border-bottom:1px solid #d0d7de; padding-bottom:8px; }
+  h2 { font-size:20px; margin-top:30px; border-bottom:1px solid #eaecef; padding-bottom:4px; }
+  h3 { font-size:16px; margin-top:20px; }
+  code { background:#f6f8fa; padding:2px 5px; border-radius:5px; font-size:85%; }
+  pre code { background:none; padding:0; }
+  table { border-collapse:collapse; margin:14px 0; } th,td { border:1px solid #d0d7de; padding:6px 11px; }
+  th { background:#f6f8fa; }
+  .provenance { background:#f6f8fa; border:1px solid #d0d7de; border-radius:8px; padding:8px 14px; font-size:13px; color:#57606a; margin-bottom:18px; }
+  .mermaid { border:1px solid #eaecef; border-radius:8px; margin:16px 0; background:#fbfcfd; overflow:hidden; }
+  .mermaid svg { width:100%; height:520px; }
+  .controls { position:sticky; top:0; z-index:50; background:#fff; padding:8px 0; border-bottom:1px solid #eaecef; display:flex; gap:8px; align-items:center; }
+  .btn { cursor:pointer; border:1px solid #d0d7de; background:#f6f8fa; border-radius:6px; padding:5px 12px; font-size:13px; }
+  .btn:hover { background:#eaeef2; }
+  .hint { font-size:12px; color:#8b949e; }
+  #findings.hidden { display:none; }
+  .sev { border-left:4px solid #d0d7de; padding-left:10px; margin:8px 0; }
+  .sev-blocker { border-color:var(--blocker); } .sev-high { border-color:var(--high); }
+  .sev-medium { border-color:var(--medium); } .sev-low { border-color:var(--low); }
+  .badge { font-size:11px; font-weight:600; text-transform:uppercase; padding:1px 6px; border-radius:10px; color:#fff; margin-right:6px; }
+  .badge-blocker { background:var(--blocker); } .badge-high { background:var(--high); }
+  .badge-medium { background:var(--medium); } .badge-low { background:var(--low); }
+</style></head><body>
+<div class="controls"><button class="btn" id="toggle-findings">Toggle findings</button><span class="hint">scroll to zoom · drag to pan · click a node to open its file</span></div>
+<div class="provenance">tornhill blueprint · derived-from engine-run 2026.07 · diagrams zoom/pan · nodes open code · toggle findings above.</div>
+<h1 id="tornhill-on-real-code-a-sanitized-benchmark">tornhill on real code — a sanitized benchmark</h1>
+<p>tornhill's deterministic engine was run against <strong>four real, private production
+backends</strong>. This page proves the engine works on real code — and discloses <strong>nothing
+that could identify the projects</strong>: no names, business categories, languages,
+frameworks, commit counts, file counts, or paths. Only engine-behaviour aggregates
+and tornhill's own rule ids (<code>SEC-IDOR-01</code>, …) appear; those are ours, not the
+projects'. The raw runs stay private.</p>
+<h2 id="the-engine-ran-clean">The engine ran clean</h2>
+<p>All four backends completed the full pipeline — enumerate routes, scan candidate
+signals, build the module graph, mine git, join risk, route rules — with <strong>zero
+manual fixups</strong>. Set-wide totals:</p>
+<table>
+<thead>
+<tr>
+<th>Metric (all four combined)</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Routes enumerated</td>
+<td><strong>912</strong></td>
+</tr>
+<tr>
+<td>Candidate signals¹</td>
+<td><strong>2,872</strong></td>
+</tr>
+<tr>
+<td>Candidates routed into isolated rules</td>
+<td><strong>1,686</strong></td>
+</tr>
+<tr>
+<td>Rules with routed evidence (per backend)</td>
+<td><strong>17–19 of 23</strong></td>
+</tr>
+</tbody>
+</table>
+<p>¹ Capped at 200 per family, so this is a floor, not a ceiling. Candidates are
+<strong>evidence to confirm, not findings</strong>.</p>
+<p>The router split those ~1,700 candidates into <strong>17–19 single-rule work packets per
+backend</strong>. Under the old design all of them would have entered one analysis prompt,
+forcing the model to juggle every rule at once — the conflation risk this redesign
+removes. Now each rule is confirmed in isolation, with only its own evidence.</p>
+<h2 id="accuracy-candidates-are-not-findings">Accuracy: candidates are not findings</h2>
+<p>The clearest illustration is the auth check. Whether a route requires login is often
+declared <strong>away from the route line</strong> — applied to the whole app at once, or through
+an indirection layer, or inline. A naïve line-local reading therefore massively
+over-reports "no auth."</p>
+<p>Across the four backends, resolving app-wide and indirect auth (not just the route
+line) changed the picture dramatically:</p>
+<table>
+<thead>
+<tr>
+<th>Routes flagged "no auth"</th>
+<th>Count (all four)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Naïve line-local scan</td>
+<td><strong>826</strong></td>
+</tr>
+<tr>
+<td>After resolving app-wide + indirect auth</td>
+<td><strong>110</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>An 87% cut in false "no-auth" candidates — before the per-rule confirmation even
+runs.</strong> The remaining 110 are not asserted as findings; they are candidates the
+<code>SEC-AUTH-01</code> pass confirms against real code, guided by its false-positive guard
+("auth applied by an upstream/global policy — trace it"). A missed pattern degrades
+to "double-check this," never to a false public claim. The same candidate→confirm
+discipline governs every family (PII, injection, N+1, …), not just auth.</p>
+<h2 id="per-rule-routing-pooled-across-the-four">Per-rule routing (pooled across the four)</h2>
+<p>Which rules received real evidence, and how much — rule ids and families are
+tornhill's own, safe to publish:</p>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Family</th>
+<th>Backends with evidence</th>
+<th>Candidates routed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PRI-RESP-01</td>
+<td>privacy</td>
+<td>4/4</td>
+<td>200</td>
+</tr>
+<tr>
+<td>PRI-RETAIN-01</td>
+<td>privacy</td>
+<td>4/4</td>
+<td>200</td>
+</tr>
+<tr>
+<td>SEC-IDOR-01</td>
+<td>security</td>
+<td>4/4</td>
+<td>173</td>
+</tr>
+<tr>
+<td>SEC-RATELIMIT-01</td>
+<td>security</td>
+<td>4/4</td>
+<td>100</td>
+</tr>
+<tr>
+<td>PRI-COLLECT-01</td>
+<td>privacy</td>
+<td>4/4</td>
+<td>100</td>
+</tr>
+<tr>
+<td>PRI-CONSENT-01</td>
+<td>privacy</td>
+<td>4/4</td>
+<td>100</td>
+</tr>
+<tr>
+<td>PRI-ACCESS-01</td>
+<td>privacy</td>
+<td>4/4</td>
+<td>100</td>
+</tr>
+<tr>
+<td>PERF-TIMEOUT-01</td>
+<td>perf</td>
+<td>4/4</td>
+<td>100</td>
+</tr>
+<tr>
+<td>CORR-EQ-01</td>
+<td>correctness</td>
+<td>4/4</td>
+<td>100</td>
+</tr>
+<tr>
+<td>PERF-N1-01</td>
+<td>perf</td>
+<td>4/4</td>
+<td>90</td>
+</tr>
+<tr>
+<td>SEC-INJ-SQL-01</td>
+<td>security</td>
+<td>4/4</td>
+<td>76</td>
+</tr>
+<tr>
+<td>PRI-LOG-01</td>
+<td>privacy</td>
+<td>4/4</td>
+<td>63</td>
+</tr>
+<tr>
+<td>SEC-INJ-EXEC-01</td>
+<td>security</td>
+<td>4/4</td>
+<td>55</td>
+</tr>
+<tr>
+<td>PERF-SYNC-01</td>
+<td>perf</td>
+<td>4/4</td>
+<td>51</td>
+</tr>
+<tr>
+<td>CORR-TXN-01</td>
+<td>correctness</td>
+<td>3/4</td>
+<td>69</td>
+</tr>
+<tr>
+<td>CORR-RACE-01</td>
+<td>correctness</td>
+<td>3/4</td>
+<td>69</td>
+</tr>
+<tr>
+<td>SEC-SECRET-01</td>
+<td>security</td>
+<td>3/4</td>
+<td>5</td>
+</tr>
+<tr>
+<td>SEC-AUTH-01</td>
+<td>security</td>
+<td>2/4</td>
+<td>23</td>
+</tr>
+<tr>
+<td>SEC-DESERIAL-01</td>
+<td>security</td>
+<td>2/4</td>
+<td>7</td>
+</tr>
+<tr>
+<td>SEC-SSRF-01</td>
+<td>security</td>
+<td>2/4</td>
+<td>5</td>
+</tr>
+</tbody>
+</table>
+<p>Twenty distinct rules drew real evidence across the set — every family (security,
+privacy, perf, correctness) fired on real code.</p>
+<h2 id="signals-a-static-snapshot-cant-give">Signals a static snapshot can't give</h2>
+<p>The deterministic git rules need no reasoning and can't come from a point-in-time
+view: churn × centrality hotspots, temporal (hidden) coupling, and recurring-fix
+pain. On these backends they surfaced the expected shape — a small number of modules
+that are both heavily changed and heavily connected concentrate the risk. (Specific
+modules and magnitudes are withheld as they are project data.)</p>
+<h2 id="honesty-notes">Honesty notes</h2>
+<ul>
+<li>Candidate signals are capped per family — the totals are floors.</li>
+<li><code>has_auth</code> is <strong>approximate</strong> (<code>route|decorator|custom_decorator|class|global|
+  public|none</code>); it can miss unusual patterns (gateway/proxy auth, mount-time
+  middleware, other languages). <code>none</code> means "confirm this," not "proven open."</li>
+<li>Nothing here is a finding. Findings require the per-rule confirmation pass reading
+  the real code — which is not run in this deterministic benchmark.</li>
+</ul>
+<h2 id="reproduce-on-any-git-repo">Reproduce (on any git repo)</h2>
+<pre><code class="language-bash">DIR=/path/to/a/git/repo
+python scripts/tornhill-mine-routes.py  &quot;$DIR&quot; --format json &gt; routes.json
+python scripts/tornhill-scan-signals.py &quot;$DIR&quot; --format json &gt; signals.json
+python scripts/tornhill-mine-graph.py   &quot;$DIR&quot; --module-depth 2 --format json &gt; graph.json
+python scripts/tornhill-mine-git.py     &quot;$DIR&quot; --module-depth 2 --top 1000 --format json &gt; git.json
+python scripts/tornhill-join-risk.py --git git.json --graph graph.json --format json &gt; risk.json
+python scripts/tornhill-route-rules.py --pack audit_pack \
+  --signals signals.json --routes routes.json --risk risk.json --format json &gt; ruleplan.json
+# leak-free per-repo summary (counts + rule ids only; no framework, domain, or paths):
+python scripts/tornhill-sanitize.py --ruleplan ruleplan.json --routes routes.json \
+  --signals signals.json --git git.json --risk risk.json --label &quot;Repo (anon)&quot;
+</code></pre>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.3/dist/mermaid.min.js" integrity="sha384-R63zfMfSwJF4xCR11wXii+QUsbiBIdiDzDbtxia72oGWfkT7WHJfmD/I/eeHPJyT" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js" integrity="sha384-yc/c2Lk1s2V2ir1rxvjo8YyVD9PlOlYTqpNr3Wm1WIuAA30GlDYNx6U5104OiavY" crossorigin="anonymous"></script>
+<script>  mermaid.initialize({ startOnLoad: false, securityLevel: 'loose', theme: 'neutral' });
+  async function render() {
+    await mermaid.run({ querySelector: '.mermaid' });
+    document.querySelectorAll('.mermaid svg').forEach(svg => {
+      svg.removeAttribute('height'); svg.style.height = '520px';
+      try { svgPanZoom(svg, { controlIconsEnabled: true, fit: true, center: true, minZoom: 0.3 }); }
+      catch (e) {}
+    });
+  }
+  function wrapFindings() {
+    const h = [...document.querySelectorAll('h2')].find(x => /findings/i.test(x.textContent));
+    if (!h) return null;
+    const box = document.createElement('div'); box.id = 'findings';
+    const kids = []; let n = h.nextElementSibling;
+    while (n && n.tagName !== 'H2') { kids.push(n); n = n.nextElementSibling; }
+    h.after(box); kids.forEach(k => box.appendChild(k));
+    return box;
+  }
+  function colorSeverities(box) {
+    if (!box) return;
+    box.querySelectorAll('li, p').forEach(el => {
+      const m = el.textContent.match(/\[(blocker|high|medium|low)\]/i);
+      if (!m) return;
+      const sev = m[1].toLowerCase();
+      el.classList.add('sev', 'sev-' + sev);
+      const badge = document.createElement('span');
+      badge.className = 'badge badge-' + sev; badge.textContent = sev;
+      el.insertBefore(badge, el.firstChild);
+    });
+  }
+  window.addEventListener('DOMContentLoaded', () => {
+    const box = wrapFindings(); colorSeverities(box);
+    const t = document.getElementById('toggle-findings');
+    if (t && box) t.addEventListener('click', () => box.classList.toggle('hidden'));
+    render();
+  });
+</script>
+</body></html>
