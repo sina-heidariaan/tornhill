@@ -1,0 +1,35 @@
+id: HIPAA
+name: HIPAA Security Rule, 45 CFR Part 164 Subpart C
+authority_url: https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164
+catalog_version: "2026.07"
+last_verified: "2026-07-03"
+jurisdiction: US
+clauses:
+  - id: "164.312(a)(1)"
+    title: Access control
+    applies_to: [access_control, id_lookup, param_to_db, auth]
+    check_hint: "Technical policies limit ePHI access to authorized persons; endpoints enforce per-user authorization, not just authentication."
+  - id: "164.312(b)"
+    title: Audit controls
+    applies_to: [logging, audit_trail]
+    check_hint: "Access to ePHI is recorded and examinable (audit log), without logging the PHI itself in the clear."
+  - id: "164.312(c)(1)"
+    title: Integrity
+    applies_to: [integrity, correctness]
+    check_hint: "ePHI is protected from improper alteration or destruction."
+  - id: "164.312(d)"
+    title: Person or entity authentication
+    applies_to: [auth]
+    check_hint: "The identity of a user seeking access to ePHI is verified."
+  - id: "164.312(e)(1)"
+    title: Transmission security
+    applies_to: [encryption]
+    check_hint: "ePHI is encrypted in transit against unauthorized access."
+  - id: "164.502(b)"
+    title: Minimum necessary
+    applies_to: [pii_in_response, pii_field, minimum_necessary]
+    check_hint: "Only the minimum ePHI necessary is used, disclosed, or returned by an endpoint."
+  - id: "164.514(a)"
+    title: De-identification of protected health information
+    applies_to: [pii_in_logs, pii_in_response]
+    check_hint: "PHI is de-identified where full identifiers are not required."

@@ -1,0 +1,31 @@
+id: WCAG
+name: Web Content Accessibility Guidelines 2.2 (W3C Recommendation)
+authority_url: https://www.w3.org/TR/WCAG22/
+catalog_version: "2026.07"
+last_verified: "2026-07-03"
+jurisdiction: global
+clauses:
+  - id: "1.1.1"
+    title: Non-text Content (Level A)
+    applies_to: [a11y, alt_text]
+    check_hint: "Images and non-text content have text alternatives."
+  - id: "1.4.3"
+    title: Contrast (Minimum) (Level AA)
+    applies_to: [a11y, contrast]
+    check_hint: "Text has at least a 4.5:1 contrast ratio against its background."
+  - id: "2.1.1"
+    title: Keyboard (Level A)
+    applies_to: [a11y, keyboard]
+    check_hint: "All functionality is operable through a keyboard."
+  - id: "2.4.7"
+    title: Focus Visible (Level AA)
+    applies_to: [a11y, focus]
+    check_hint: "The keyboard focus indicator is visible."
+  - id: "3.3.2"
+    title: Labels or Instructions (Level A)
+    applies_to: [a11y, form_labels]
+    check_hint: "Form inputs have labels or instructions."
+  - id: "4.1.2"
+    title: Name, Role, Value (Level A)
+    applies_to: [a11y, aria]
+    check_hint: "UI components expose an accessible name, role, and state to assistive tech."

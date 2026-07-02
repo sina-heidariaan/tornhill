@@ -1,0 +1,23 @@
+id: PSD2
+name: Payment Services Directive 2, Directive (EU) 2015/2366 (+ RTS on SCA, Reg. (EU) 2018/389)
+authority_url: https://eur-lex.europa.eu/eli/dir/2015/2366/oj
+catalog_version: "2026.07"
+last_verified: "2026-07-03"
+jurisdiction: EU
+clauses:
+  - id: "Art.97"
+    title: Strong customer authentication (SCA)
+    applies_to: [auth, missing_auth, mfa]
+    check_hint: "Payment-initiation and account-access endpoints apply strong customer authentication (two independent factors)."
+  - id: "Art.98"
+    title: Regulatory technical standards on authentication and communication
+    applies_to: [auth, encryption]
+    check_hint: "Authentication and secure communication follow the RTS (Reg. (EU) 2018/389), incl. dynamic linking of transactions."
+  - id: "Art.66"
+    title: Rules on access to a payment account (payment initiation)
+    applies_to: [access_control, consent]
+    check_hint: "Third-party access to accounts requires explicit user consent and controlled scopes."
+  - id: "Art.94"
+    title: Data protection
+    applies_to: [consent, pii_field]
+    check_hint: "Payment-service data is processed only with the user's explicit consent and for the necessary purpose."

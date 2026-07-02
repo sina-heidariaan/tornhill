@@ -1,0 +1,31 @@
+id: ISO-27001
+name: ISO/IEC 27001:2022 — Annex A controls
+authority_url: https://www.iso.org/standard/27001
+catalog_version: "2026.07"
+last_verified: "2026-07-03"
+jurisdiction: global
+clauses:
+  - id: "A.5.15"
+    title: Access control
+    applies_to: [access_control, id_lookup, param_to_db, auth]
+    check_hint: "Access to information and assets is limited per an access-control policy (least privilege, ownership)."
+  - id: "A.5.34"
+    title: Privacy and protection of personally identifiable information (PII)
+    applies_to: [pii_field, pii_in_response]
+    check_hint: "PII is identified and protected per applicable requirements."
+  - id: "A.8.12"
+    title: Data leakage prevention
+    applies_to: [pii_in_response, log_sensitive]
+    check_hint: "Measures prevent sensitive data leaking through responses, logs, or exports."
+  - id: "A.8.15"
+    title: Logging
+    applies_to: [logging, audit_trail, missing_logging]
+    check_hint: "Events are logged, protected, and reviewed — without recording secrets/PII in the clear."
+  - id: "A.8.24"
+    title: Use of cryptography
+    applies_to: [encryption, hardcoded_secret, aws_key]
+    check_hint: "Cryptography is used effectively; keys are managed, not hardcoded."
+  - id: "A.8.28"
+    title: Secure coding
+    applies_to: [sql_concat, eval, shell, injection, swallowed_error]
+    check_hint: "Secure coding principles are applied (input validation, injection-safe queries, error handling)."

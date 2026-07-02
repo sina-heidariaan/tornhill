@@ -1,0 +1,43 @@
+id: OWASP-TOP10
+name: OWASP Top 10 (2021)
+authority_url: https://owasp.org/Top10/
+catalog_version: "2026.07"
+last_verified: "2026-07-03"
+jurisdiction: global
+clauses:
+  - id: "A01:2021"
+    title: Broken Access Control
+    applies_to: [id_lookup, param_to_db, access_control, authz, missing_auth]
+    check_hint: "Endpoints enforce per-object ownership/authorization, not just authentication (no IDOR)."
+  - id: "A02:2021"
+    title: Cryptographic Failures
+    applies_to: [encryption, hardcoded_secret, aws_key, secret]
+    check_hint: "Sensitive data is encrypted in transit and at rest; no hardcoded keys or weak crypto."
+  - id: "A03:2021"
+    title: Injection
+    applies_to: [sql_concat, eval, shell, injection]
+    check_hint: "Input is parameterized/validated; no string-built SQL, eval, or shell from user input."
+  - id: "A04:2021"
+    title: Insecure Design
+    applies_to: [design]
+    check_hint: "Threat modelling and secure design patterns are applied to the flow."
+  - id: "A05:2021"
+    title: Security Misconfiguration
+    applies_to: [misconfig, swallowed_error]
+    check_hint: "No insecure defaults, verbose errors, or disabled security controls."
+  - id: "A07:2021"
+    title: Identification and Authentication Failures
+    applies_to: [auth, missing_auth]
+    check_hint: "Authentication is present, session/tokens are handled securely on protected routes."
+  - id: "A08:2021"
+    title: Software and Data Integrity Failures
+    applies_to: [integrity, unseeded_id]
+    check_hint: "Data and updates are integrity-checked; no insecure deserialization or unsigned updates."
+  - id: "A09:2021"
+    title: Security Logging and Monitoring Failures
+    applies_to: [log_sensitive, logging, missing_logging]
+    check_hint: "Security-relevant events are logged for detection — without logging secrets/PII in the clear."
+  - id: "A10:2021"
+    title: Server-Side Request Forgery (SSRF)
+    applies_to: [ssrf]
+    check_hint: "User-supplied URLs are validated before the server fetches them."

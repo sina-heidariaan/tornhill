@@ -1,0 +1,27 @@
+id: CCPA
+name: California Consumer Privacy Act (as amended by the CPRA), Cal. Civ. Code §1798.100 et seq.
+authority_url: https://leginfo.legislature.ca.gov/faces/codes_displayText.xhtml?division=3.&part=4.&lawCode=CIV&title=1.81.5
+catalog_version: "2026.07"
+last_verified: "2026-07-03"
+jurisdiction: US-CA
+clauses:
+  - id: "1798.100"
+    title: Consumers' right to know / notice at collection
+    applies_to: [pii_field, data_subject_rights]
+    check_hint: "The categories of personal information collected are disclosed and the consumer can request them."
+  - id: "1798.105"
+    title: Right to delete personal information
+    applies_to: [erasure, data_subject_rights]
+    check_hint: "A consumer's personal information can be deleted on verified request."
+  - id: "1798.120"
+    title: Right to opt out of sale/sharing
+    applies_to: [consent, data_sharing]
+    check_hint: "A consumer can opt out of the sale or sharing of their personal information."
+  - id: "1798.121"
+    title: Right to limit use of sensitive personal information
+    applies_to: [pii_field, sensitive_pii]
+    check_hint: "Use of sensitive personal information (SSN, health, precise geolocation) can be limited on request."
+  - id: "1798.150"
+    title: Private right of action for data breaches
+    applies_to: [encryption, access_control, hardcoded_secret]
+    check_hint: "Nonencrypted/nonredacted personal information is protected by reasonable security; a breach creates statutory liability."

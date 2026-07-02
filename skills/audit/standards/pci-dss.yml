@@ -1,0 +1,35 @@
+id: PCI-DSS
+name: Payment Card Industry Data Security Standard v4.0
+authority_url: https://www.pcisecuritystandards.org/document_library/
+catalog_version: "2026.07"
+last_verified: "2026-07-03"
+jurisdiction: global
+clauses:
+  - id: "Req 3"
+    title: Protect stored account data
+    applies_to: [pii_field, card_data, encryption]
+    check_hint: "Primary account numbers (PAN) are rendered unreadable (encryption/truncation/tokenization) wherever stored."
+  - id: "Req 3.3"
+    title: Do not store sensitive authentication data after authorization
+    applies_to: [secret, card_data, hardcoded_secret]
+    check_hint: "CVV/CVC, full track data, and PINs are never stored after authorization."
+  - id: "Req 4"
+    title: Protect cardholder data with strong cryptography during transmission
+    applies_to: [encryption]
+    check_hint: "Cardholder data is encrypted with strong cryptography over open/public networks."
+  - id: "Req 6"
+    title: Develop and maintain secure systems and software
+    applies_to: [sql_concat, eval, shell, injection]
+    check_hint: "Code is protected against injection and common vulnerabilities (secure coding, parameterized queries)."
+  - id: "Req 7"
+    title: Restrict access to system components and cardholder data by business need to know
+    applies_to: [access_control, id_lookup, param_to_db]
+    check_hint: "Access to cardholder data is restricted per role and ownership, least privilege."
+  - id: "Req 8"
+    title: Identify users and authenticate access to system components
+    applies_to: [auth]
+    check_hint: "Each user is uniquely identified and strongly authenticated."
+  - id: "Req 10"
+    title: Log and monitor all access to system components and cardholder data
+    applies_to: [logging, audit_trail]
+    check_hint: "Access is logged for monitoring, without writing full PAN/secrets into the logs."

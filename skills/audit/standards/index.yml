@@ -1,0 +1,38 @@
+# Standards selection — maps a confirmed project profile to applicable standard IDs.
+# See docs/audit-standards.md for the contract. A standard is citeable ONLY if it
+# has a resolvable file under `standards:` below; otherwise findings map as unmapped.
+catalog_version: "2026.07"
+
+# every project, regardless of domain/region
+always: [OWASP-TOP10, ISO-27001]
+
+by_domain:
+  healthcare: [HIPAA, HL7-FHIR]
+  payments: [PCI-DSS]
+  financial_eu: [PSD2, ISO-20022]
+  ecommerce: [PCI-DSS]
+
+by_region:
+  EU: [GDPR]
+  EEA: [GDPR]
+  UK: [UK-GDPR]
+  US-CA: [CCPA]
+  BR: [LGPD]
+  CN: [PIPL]
+
+by_condition:
+  handles_card_data: [PCI-DSS]
+  handles_health_data: [HIPAA]
+  has_ui: [WCAG]
+
+# id -> catalog file. Only these are citeable. Others (UK-GDPR, LGPD, PIPL,
+# HL7-FHIR, ISO-20022, NIST-CSF, EN-301-549) are planned — see docs/audit-standards.md.
+standards:
+  GDPR: gdpr.yml
+  CCPA: ccpa.yml
+  HIPAA: hipaa.yml
+  PCI-DSS: pci-dss.yml
+  OWASP-TOP10: owasp-top10.yml
+  ISO-27001: iso-27001.yml
+  PSD2: psd2.yml
+  WCAG: wcag.yml
