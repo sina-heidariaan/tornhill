@@ -1,0 +1,129 @@
+# Privacy / compliance rules (audit_pack). Isolated cards; each carries its own
+# standard_map into skills/audit/standards/*.yml. Clause attribution is a SEPARATE
+# pass from code detection — a card only maps to clauses whose standard the profile
+# actually selected (a mapped clause for an unselected standard is dropped).
+family: privacy
+catalog_version: "2026.07"
+rules:
+  - id: PRI-RESP-01
+    title: PII / PHI over-returned in a response
+    intent: >
+      A handler returns sensitive fields the caller does not need (full records,
+      other users' data, secrets embedded in an object).
+    consumes:
+      signals: [pii/pii_field]
+      routes:  [any]
+    procedure:
+      - Open the handler and trace what it serialises into the response.
+      - Confirm sensitive fields (SSN, card, health, tokens, other-user PII) are returned.
+      - Confirm the caller does not need those fields for the endpoint's purpose.
+    false_positive_guards:
+      - Response is filtered by a DTO / serializer / field projection.
+      - The returned fields belong to the authenticated caller and are required.
+    evidence_required: [code_anchor, standard_anchor]
+    severity_default: high
+    severity_criteria: blocker if PHI/card/other-user PII leaks; else high.
+    standard_map:
+      - {standard: GDPR, clause: "Art.5(1)(c)"}
+      - {standard: HIPAA, clause: "164.502(b)"}
+      - {standard: ISO-27001, clause: "A.8.12"}
+      - {standard: CCPA, clause: "1798.100"}
+
+  - id: PRI-LOG-01
+    title: PII / secrets written to logs
+    intent: >
+      Request/response bodies, headers, tokens, or PII are logged in the clear.
+    consumes:
+      signals: [log/log_sensitive]
+    procedure:
+      - Open the candidate cite.
+      - Confirm the logged argument contains PII, a secret, or a full request/response.
+      - Confirm the log sink persists (not a guarded debug-only path).
+    false_positive_guards:
+      - The value is redacted/masked before logging.
+      - Only non-sensitive identifiers (opaque ids) are logged.
+    evidence_required: [code_anchor, standard_anchor]
+    severity_default: high
+    severity_criteria: blocker if card/PHI/credentials; else high.
+    standard_map:
+      - {standard: GDPR, clause: "Art.5(1)(f)"}
+      - {standard: HIPAA, clause: "164.514(a)"}
+      - {standard: PCI-DSS, clause: "Req 10"}
+      - {standard: ISO-27001, clause: "A.8.15"}
+
+  - id: PRI-COLLECT-01
+    title: Over-collection of personal data
+    intent: >
+      An endpoint stores more personal data than its stated purpose requires.
+    consumes:
+      signals: [pii/pii_field]
+    procedure:
+      - Open the write handler / model at the candidate cite.
+      - Confirm PII fields are persisted that the feature does not need.
+      - Confirm no purpose/consent binds the collection.
+    false_positive_guards:
+      - Each stored field is necessary for the documented purpose.
+    evidence_required: [code_anchor, standard_anchor]
+    severity_default: medium
+    severity_criteria: high for sensitive categories; else medium.
+    standard_map:
+      - {standard: GDPR, clause: "Art.5(1)(c)"}
+      - {standard: ISO-27001, clause: "A.5.34"}
+      - {standard: CCPA, clause: "1798.121"}
+
+  - id: PRI-CONSENT-01
+    title: Missing lawful basis / consent for processing
+    intent: >
+      Personal data is processed with no recorded consent or lawful basis.
+    consumes:
+      signals: [pii/pii_field]
+    procedure:
+      - Identify processing of personal data (marketing, profiling, sharing).
+      - Confirm no consent flag / lawful-basis check gates the processing.
+    false_positive_guards:
+      - A consent/lawful-basis check exists upstream (trace it).
+      - Processing is strictly necessary to perform a contract.
+    evidence_required: [code_anchor, standard_anchor]
+    severity_default: medium
+    severity_criteria: high if special-category data or third-party sharing.
+    standard_map:
+      - {standard: GDPR, clause: "Art.6"}
+      - {standard: CCPA, clause: "1798.120"}
+
+  - id: PRI-RETAIN-01
+    title: Missing erasure / retention handling
+    intent: >
+      The system offers no path to delete a subject's personal data (right to
+      erasure), or retains it with no retention limit.
+    consumes:
+      signals: [pii/pii_field]
+      routes:  [any]
+    procedure:
+      - Confirm personal data is persisted for the subject.
+      - Confirm no delete/erasure route or retention job addresses it.
+    false_positive_guards:
+      - An erasure endpoint / retention job exists (cite it).
+    evidence_required: [code_anchor, standard_anchor]
+    severity_default: medium
+    severity_criteria: high if legally-mandated erasure is unmet; else medium.
+    standard_map:
+      - {standard: GDPR, clause: "Art.17"}
+      - {standard: CCPA, clause: "1798.105"}
+
+  - id: PRI-ACCESS-01
+    title: No subject-access path for held personal data
+    intent: >
+      The system cannot produce the personal data it holds about a subject on request.
+    consumes:
+      signals: [pii/pii_field]
+    procedure:
+      - Confirm personal data is held for the subject.
+      - Confirm no access/export route can return it to the subject.
+    false_positive_guards:
+      - A subject-access / data-export endpoint exists (cite it).
+    evidence_required: [code_anchor, standard_anchor]
+    severity_default: low
+    severity_criteria: medium where a right of access legally applies; else low.
+    standard_map:
+      - {standard: GDPR, clause: "Art.15"}
+      - {standard: CCPA, clause: "1798.100"}

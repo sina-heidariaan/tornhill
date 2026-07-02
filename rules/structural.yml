@@ -1,0 +1,178 @@
+# Structural / resilience / coupling / evolution rules (arch_pack). The evolution
+# and hotspot cards are DETERMINISTIC — their findings are read straight off
+# risk.json / git.json with no free judgement (deterministic: true). The rest are
+# reasoned over the module graph + traced flows.
+#
+# `consumes` sources beyond signals/routes:
+#   graph: nodes/edges tokens from graph.json (degree, cycle)
+#   git:   co_change | growth | fix_hotspots rows from mine-git
+#   risk:  hotspots rows from join-risk
+family: structural   # container file; each card declares its own family below
+catalog_version: "2026.07"
+rules:
+  # ---- structural ----
+  - id: STR-GODMOD-01
+    family: structural
+    title: God-module (excessive in+out coupling)
+    intent: >
+      A module both depends on and is depended upon by many others — a change
+      magnet and a comprehension bottleneck.
+    consumes:
+      graph: [degree]
+    procedure:
+      - Take graph nodes with the highest combined degree_in + degree_out.
+      - Confirm the module spans multiple unrelated responsibilities.
+    false_positive_guards:
+      - The node is an intended composition root / DI container.
+    evidence_required: [code_anchor]
+    severity_default: medium
+    severity_criteria: high if it is also a churn×centrality hotspot.
+    deterministic: false
+
+  - id: STR-CYCLE-01
+    family: structural
+    title: Circular module dependency
+    intent: >
+      Two or more modules import each other, forming a cycle that blocks isolated
+      change, test, and reuse.
+    consumes:
+      graph: [cycle]
+    procedure:
+      - Detect cycles among graph edges (A→B→…→A).
+      - Confirm each edge is a real import (cite it).
+    false_positive_guards:
+      - The edge is a type-only import erased at build.
+    evidence_required: [code_anchor]
+    severity_default: high
+    severity_criteria: high; blocker if it spans layer boundaries.
+    deterministic: false
+
+  - id: STR-LAYER-01
+    family: structural
+    title: Layering violation
+    intent: >
+      A lower layer imports an upper one (e.g. a model importing a controller),
+      inverting the intended dependency direction.
+    consumes:
+      graph: [degree]
+    procedure:
+      - Classify modules into layers (route/controller/service/model/util).
+      - Confirm an edge points against the intended layer order (cite it).
+    false_positive_guards:
+      - The two modules are in the same layer.
+      - The import is a shared type/interface, not a runtime dependency.
+    evidence_required: [code_anchor]
+    severity_default: medium
+    severity_criteria: high on a hot path.
+    deterministic: false
+
+  # ---- resilience ----
+  - id: RES-SPOF-01
+    family: resilience
+    title: Single point of failure
+    intent: >
+      Many flows funnel through one unit (a shared client, a single datastore, one
+      broker) whose failure takes down disproportionate functionality.
+    consumes:
+      graph: [degree]
+    procedure:
+      - Identify units most flows traverse (high fan-in on traced flows).
+      - Confirm there is no fallback / redundancy / degraded mode.
+    false_positive_guards:
+      - Redundancy / failover exists (cite it).
+    evidence_required: [code_anchor]
+    severity_default: high
+    severity_criteria: blocker if it carries money/auth for the whole system.
+    deterministic: false
+
+  - id: RES-FANOUT-01
+    family: resilience
+    title: Unbounded fan-out / architectural N+1
+    intent: >
+      A flow triggers an unbounded number of downstream calls (one per item) at
+      the architecture level, amplifying load and failure surface.
+    consumes:
+      graph: [degree]
+    procedure:
+      - Trace a flow whose step count scales with input size.
+      - Confirm the fan-out is unbounded and synchronous.
+    false_positive_guards:
+      - The fan-out is batched / bounded / queued.
+    evidence_required: [code_anchor]
+    severity_default: high
+    severity_criteria: high; blocker on a user-facing synchronous path.
+    deterministic: false
+
+  # ---- coupling ----
+  - id: COUP-HIDDEN-01
+    family: coupling
+    title: Hidden (temporal) coupling
+    intent: >
+      Modules with no import edge nevertheless change together repeatedly — an
+      invisible dependency the static graph cannot show.
+    consumes:
+      git: [co_change]
+    procedure:
+      - Read co_change pairs from git.json (already cross-module, support-filtered).
+      - Pin each pair to its two module nodes; report as hidden coupling.
+    false_positive_guards:
+      - The pair co-changes only via mechanical churn (generated files).
+    evidence_required: [code_anchor]
+    severity_default: medium
+    severity_criteria: high when confidence and shared_commits are both high.
+    deterministic: true
+
+  # ---- evolution (git; deterministic) ----
+  - id: EVO-HOTSPOT-01
+    family: evolution
+    title: Churn × centrality hotspot
+    intent: >
+      A module that is BOTH frequently changed AND highly connected — the real
+      risk surface (high blast radius meets high change rate).
+    consumes:
+      risk: [hotspots]
+    procedure:
+      - Read hotspots[] from risk.json (percentile-ranked churn × degree).
+      - Pin each top row to its module node; cite its churn + degree + risk.
+    false_positive_guards:
+      - Churn is dominated by a one-off mechanical rewrite, not ongoing change.
+    evidence_required: [code_anchor]
+    severity_default: high
+    severity_criteria: blocker for the top rows carrying money/auth.
+    deterministic: true
+
+  - id: EVO-GROWTH-01
+    family: evolution
+    title: God-class trajectory (runaway growth)
+    intent: >
+      A file whose net line growth dominates the repo — trending toward an
+      unmaintainable god object.
+    consumes:
+      git: [growth]
+    procedure:
+      - Read the top growth[] rows (net added lines) from git.json.
+      - Pin each to its file/module node; cite net_lines.
+    false_positive_guards:
+      - Growth is a vendored/generated/data file, not hand-written logic.
+    evidence_required: [code_anchor]
+    severity_default: medium
+    severity_criteria: high if it is also a hotspot.
+    deterministic: true
+
+  - id: EVO-FIXPAIN-01
+    family: evolution
+    title: Recurring-fix pain (chronic bug hotspot)
+    intent: >
+      A file repeatedly touched by fix/bug/hotfix commits — a chronic source of
+      defects.
+    consumes:
+      git: [fix_hotspots]
+    procedure:
+      - Read the top fix_hotspots[] rows (fix_touches) from git.json.
+      - Pin each to its node; cite fix_touches.
+    false_positive_guards:
+      - The "fix" commits are mislabelled chores, not real defects.
+    evidence_required: [code_anchor]
+    severity_default: high
+    severity_criteria: blocker if the chronic file also carries money/auth.
+    deterministic: true

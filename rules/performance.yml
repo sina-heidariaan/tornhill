@@ -1,0 +1,211 @@
+# Performance / efficiency / correctness rules. Shared: arch_pack uses them as the
+# analysis lenses; audit_pack reuses perf/correctness as cost-driver and
+# data-integrity findings. Most carry no standard_map (not compliance); the few
+# that touch data integrity map to a real clause.
+family: performance   # container file; each card declares its own family below
+catalog_version: "2026.07"
+rules:
+  # ---- performance ----
+  - id: PERF-N1-01
+    family: perf
+    title: N+1 query / call inside a loop
+    intent: >
+      A per-iteration query/fetch/await runs inside a loop, turning one logical
+      operation into N round-trips.
+    consumes:
+      signals: [cost/n_plus_1]
+    procedure:
+      - Open the candidate cite (a loop header with an await/query in its body).
+      - Confirm the awaited call hits a DB / network / service per iteration.
+      - Confirm it could be batched or joined into one call.
+    false_positive_guards:
+      - The loop body operates on already-loaded in-memory data.
+      - The collection is bounded and tiny by construction.
+    evidence_required: [code_anchor]
+    severity_default: medium
+    severity_criteria: high on a request/hot path over unbounded input; else medium.
+
+  - id: PERF-SYNC-01
+    family: perf
+    title: Blocking / synchronous call on a hot path
+    intent: >
+      A synchronous I/O or sleep call blocks the event loop / request thread.
+    consumes:
+      signals: [perf/sync_io]
+    procedure:
+      - Open the candidate cite.
+      - Confirm the sync call sits on a request or event-loop path.
+      - Confirm an async equivalent exists.
+    false_positive_guards:
+      - The call is in startup/CLI/migration code, off the request path.
+    evidence_required: [code_anchor]
+    severity_default: medium
+    severity_criteria: high on the request path under load; else low.
+
+  - id: PERF-TIMEOUT-01
+    family: perf
+    title: External call without timeout / circuit breaker
+    intent: >
+      An outbound call to another service has no timeout, so a slow dependency
+      stalls the caller.
+    consumes:
+      routes: [any]
+    procedure:
+      - Trace outbound HTTP/RPC/DB calls on a flow.
+      - Confirm no timeout / deadline / breaker is configured.
+    false_positive_guards:
+      - A global client default sets a timeout (cite it).
+    evidence_required: [code_anchor]
+    severity_default: medium
+    severity_criteria: high on a synchronous user-facing path.
+
+  # ---- efficiency ----
+  - id: EFF-UNBOUNDED-01
+    family: efficiency
+    title: Unbounded query / result set
+    intent: >
+      A query fetches all rows with no limit, growing with the table.
+    consumes:
+      signals: [cost/unbounded_query]
+    procedure:
+      - Open the candidate cite.
+      - Confirm the query has no LIMIT / pagination / filter bound.
+      - Confirm the table can grow large.
+    false_positive_guards:
+      - The set is bounded by a strict WHERE / small lookup table.
+    evidence_required: [code_anchor]
+    severity_default: medium
+    severity_criteria: high when the result feeds a response; else medium.
+
+  - id: EFF-OVERFETCH-01
+    family: efficiency
+    title: Over-fetching (SELECT * / full-object read)
+    intent: >
+      A read pulls every column/field when only a few are used, wasting I/O and
+      widening data exposure.
+    consumes:
+      signals: [cost/select_star]
+    procedure:
+      - Open the candidate cite.
+      - Confirm the query selects all columns but only a subset is used.
+    false_positive_guards:
+      - All fields are genuinely used downstream.
+    evidence_required: [code_anchor]
+    severity_default: low
+    severity_criteria: medium if it also widens PII exposure; else low.
+
+  - id: EFF-PAGINATION-01
+    family: efficiency
+    title: Missing pagination on a list endpoint
+    intent: >
+      A list/collection endpoint returns every record with no page/limit,
+      unbounded in response size.
+    consumes:
+      signals: [cost/missing_pagination]
+      routes:  [any]
+    procedure:
+      - Identify list/collection GET endpoints.
+      - Confirm the handler returns all rows with no limit/offset/cursor.
+    false_positive_guards:
+      - Pagination params are honoured (limit/offset/cursor present).
+      - The collection is inherently small and fixed.
+    evidence_required: [code_anchor]
+    severity_default: medium
+    severity_criteria: high on large user-facing collections.
+
+  # ---- correctness ----
+  - id: CORR-SWALLOW-01
+    family: correctness
+    title: Swallowed error / empty catch
+    intent: >
+      An exception is caught and discarded (empty catch, `except: pass`), hiding
+      failures and corrupting state silently.
+    consumes:
+      signals: [correctness/swallowed_error]
+    procedure:
+      - Open the candidate cite.
+      - Confirm the catch/except body neither handles, rethrows, nor logs.
+      - Confirm the guarded operation can actually fail meaningfully.
+    false_positive_guards:
+      - The empty catch is a deliberate, documented no-op (comment present).
+    evidence_required: [code_anchor]
+    severity_default: medium
+    severity_criteria: high if it masks a failed write/payment; else low.
+    standard_map:
+      - {standard: ISO-27001, clause: "A.8.28"}
+
+  - id: CORR-TXN-01
+    family: correctness
+    title: Non-idempotent multi-write without a transaction
+    intent: >
+      A handler performs multiple related writes with no transaction, so a partial
+      failure leaves inconsistent data; or a retried write duplicates effects.
+    consumes:
+      routes: [state_mutating]   # handler-level absence; confirmed from the traced handler
+    procedure:
+      - Open the handler.
+      - Confirm two or more related writes occur with no surrounding transaction.
+      - Confirm a partial failure or retry would corrupt/duplicate state.
+    false_positive_guards:
+      - Writes are wrapped in a transaction / unit of work.
+      - The operation is naturally idempotent (upsert by stable key).
+    evidence_required: [code_anchor]
+    severity_default: high
+    severity_criteria: blocker on money/ledger paths; else high.
+    standard_map:
+      - {standard: HIPAA, clause: "164.312(c)(1)"}
+
+  - id: CORR-RACE-01
+    family: correctness
+    title: Race condition on shared state
+    intent: >
+      Concurrent requests read-modify-write shared state (balance, counter,
+      inventory) with no lock / atomic op / optimistic version.
+    consumes:
+      routes: [state_mutating]
+    procedure:
+      - Trace read-modify-write sequences on shared/persistent state.
+      - Confirm no lock, atomic update, or version check guards them.
+    false_positive_guards:
+      - An atomic DB op / row lock / optimistic version is used.
+    evidence_required: [code_anchor]
+    severity_default: high
+    severity_criteria: blocker on money/inventory; else high.
+
+  - id: CORR-EQ-01
+    family: correctness
+    title: Loose equality / type-coercion comparison
+    intent: >
+      A comparison uses loose equality where coercion can produce a wrong result
+      in a security- or money-relevant branch.
+    consumes:
+      signals: [correctness/loose_equality]
+    procedure:
+      - Open the candidate cite.
+      - Confirm the compared operands can differ in type at runtime.
+      - Confirm the branch guards a meaningful decision.
+    false_positive_guards:
+      - Operands are always the same type; the branch is inconsequential.
+    evidence_required: [code_anchor]
+    severity_default: low
+    severity_criteria: medium if it gates auth/authorization; else low.
+
+  - id: CORR-ID-01
+    family: correctness
+    title: Predictable / unseeded identifier or token
+    intent: >
+      An id, token, or key that should be unguessable is derived from a weak RNG.
+    consumes:
+      signals: [correctness/unseeded_id]
+    procedure:
+      - Open the candidate cite.
+      - Confirm the value is used as a security-relevant id/token/key.
+      - Confirm it comes from a non-cryptographic RNG (Math.random, etc.).
+    false_positive_guards:
+      - The value is a non-security display id.
+      - A CSPRNG (crypto.randomUUID, secrets) is actually used.
+    evidence_required: [code_anchor]
+    severity_default: medium
+    severity_criteria: high if it guards access/reset tokens.
+    standard_map:
+      - {standard: ISO-27001, clause: "A.8.28"}

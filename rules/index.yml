@@ -1,0 +1,41 @@
+# Rule catalog — the single source of truth for tornhill's analysis rules.
+# See docs/rules.md for the contract. Each rule is an ISOLATED card the engine
+# routes evidence to and the skill confirms ONE AT A TIME (no rule-mixing).
+#
+# This index does three things:
+#   1. stamps the catalog version,
+#   2. registers every rule file (family -> file), and
+#   3. declares pack membership — which command loads which families.
+#
+# `standard_map` entries inside each rule card cite clauses in
+# skills/audit/standards/*.yml; those files remain the ONLY citeable legal source.
+catalog_version: "2026.07"
+
+# family -> catalog file. A rule is citeable/routable ONLY if its family resolves here.
+families:
+  security:     security.yml
+  privacy:      privacy.yml
+  perf:         performance.yml
+  efficiency:   performance.yml
+  correctness:  performance.yml
+  structural:   structural.yml
+  resilience:   structural.yml
+  coupling:     structural.yml
+  evolution:    structural.yml
+
+# Which families each command's engine loads. One command -> one pack -> only its
+# rules reach the per-rule loop, so the two skills never bleed rules into each other.
+packs:
+  arch_pack:            # /tornhill
+    - structural
+    - resilience
+    - coupling
+    - evolution
+    - perf
+    - efficiency
+    - correctness
+  audit_pack:           # /audit
+    - security
+    - privacy
+    - perf          # reused as "cost driver" lens
+    - correctness   # reused for data-integrity findings

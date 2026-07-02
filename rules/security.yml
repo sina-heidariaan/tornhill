@@ -1,0 +1,195 @@
+# Security rules (audit_pack). Each card is self-contained: the agent reads ONLY
+# this card + its routed evidence bucket, runs `procedure`, applies
+# `false_positive_guards`, and emits findings for THIS rule alone.
+#
+# `consumes` join keys:
+#   signals: "<family>/<subtype>" rows from tornhill-scan-signals.py
+#   routes:  tokens matched against routes.json rows (has_auth:false, state_mutating, any)
+family: security
+catalog_version: "2026.07"
+rules:
+  - id: SEC-IDOR-01
+    title: Broken object-level authorization (IDOR / BOLA)
+    intent: >
+      A handler loads an object by a user-supplied id and returns or mutates it
+      without verifying the caller owns (or may access) that object.
+    consumes:
+      signals: [authz/id_lookup, authz/param_to_db]
+      routes:  [has_auth:true, has_auth:false]
+    procedure:
+      - Open the handler at the candidate cite.
+      - Confirm the id originates from req params/query/body (not from the session).
+      - Confirm the DB lookup uses that id with NO ownership or tenant filter.
+      - Confirm the object is then returned to the caller or mutated.
+    false_positive_guards:
+      - Ownership/authorization enforced by an upstream guard or middleware (trace it).
+      - Query is already scoped by req.user.id / tenant / organisation.
+      - The object is non-sensitive and intentionally public.
+    evidence_required: [code_anchor]
+    severity_default: blocker
+    severity_criteria: >
+      blocker if state-mutating or the object holds sensitive data; else high.
+    standard_map:
+      - {standard: OWASP-TOP10, clause: "A01:2021"}
+      - {standard: GDPR, clause: "Art.25"}
+
+  - id: SEC-AUTH-01
+    title: Missing authentication on a sensitive or state-mutating route
+    intent: >
+      A route that mutates state or exposes sensitive data is reachable without an
+      authenticated caller.
+    consumes:
+      routes: [has_auth:false, state_mutating]
+    procedure:
+      - Take each route where has_auth is false.
+      - Confirm the handler mutates state (write/delete) or returns sensitive data.
+      - Confirm no auth check exists inside the handler either (not just middleware).
+    false_positive_guards:
+      - Route is intentionally public (health check, login, public catalogue).
+      - Auth applied by a router-level guard the enumerator missed (trace it).
+    evidence_required: [code_anchor]
+    severity_default: blocker
+    severity_criteria: >
+      blocker on money/state-mutating routes; high on sensitive reads.
+    standard_map:
+      - {standard: OWASP-TOP10, clause: "A07:2021"}
+      - {standard: ISO-27001, clause: "A.5.15"}
+
+  - id: SEC-INJ-SQL-01
+    title: SQL injection via string-built query
+    intent: >
+      User input reaches a SQL statement through concatenation, template literals,
+      or format strings instead of parameterisation.
+    consumes:
+      signals: [injection/sql_concat]
+    procedure:
+      - Open the candidate cite.
+      - Confirm the interpolated value derives from user input (req/request/args).
+      - Confirm the query is executed (not a logged string or a constant).
+    false_positive_guards:
+      - The interpolated value is a constant or an internal enum, not user input.
+      - An ORM/parameterised binding is actually used on the executed call.
+    evidence_required: [code_anchor]
+    severity_default: blocker
+    severity_criteria: blocker when user-controlled and executed.
+    standard_map:
+      - {standard: OWASP-TOP10, clause: "A03:2021"}
+      - {standard: GDPR, clause: "Art.32"}
+
+  - id: SEC-INJ-EXEC-01
+    title: Code / command injection (eval / shell)
+    intent: >
+      User-influenced input reaches eval, new Function, or a shell/exec call.
+    consumes:
+      signals: [injection/eval, injection/shell]
+    procedure:
+      - Open the candidate cite.
+      - Confirm the evaluated/executed argument is influenced by external input.
+      - Confirm no allow-list or safe API replaces the dynamic execution.
+    false_positive_guards:
+      - Argument is a fixed constant / internal command with no user input.
+      - Input is strictly validated against an allow-list before the call.
+    evidence_required: [code_anchor]
+    severity_default: blocker
+    severity_criteria: blocker when user-influenced.
+    standard_map:
+      - {standard: OWASP-TOP10, clause: "A03:2021"}
+
+  - id: SEC-SSRF-01
+    title: Server-side request forgery (SSRF)
+    intent: >
+      The server fetches a URL derived from user input without validating the host.
+    consumes:
+      signals: [injection/ssrf]
+    procedure:
+      - Open the candidate cite.
+      - Confirm the fetched URL/host comes from user input.
+      - Confirm there is no allow-list / scheme+host validation before the fetch.
+    false_positive_guards:
+      - URL is validated against an allow-list of hosts/schemes.
+      - Target is a fixed internal endpoint, not user-supplied.
+    evidence_required: [code_anchor]
+    severity_default: high
+    severity_criteria: blocker if it can reach internal/metadata endpoints; else high.
+    standard_map:
+      - {standard: OWASP-TOP10, clause: "A10:2021"}
+
+  - id: SEC-SECRET-01
+    title: Hardcoded secret / credential
+    intent: >
+      An API key, token, password, or private key is committed as a literal in code.
+    consumes:
+      signals: [secret/hardcoded_secret, secret/aws_key]
+    procedure:
+      - Open the candidate cite.
+      - Confirm the literal is a real credential (not a placeholder/example/test fixture).
+      - Confirm the file is tracked (would ship), not git-ignored.
+    false_positive_guards:
+      - Value is an obvious placeholder (CHANGE_ME, xxxx, example).
+      - It is a public/publishable key, or lives only in a local .env sample.
+    evidence_required: [code_anchor]
+    severity_default: blocker
+    severity_criteria: blocker for live credentials; high for weak/rotatable ones.
+    standard_map:
+      - {standard: OWASP-TOP10, clause: "A02:2021"}
+      - {standard: ISO-27001, clause: "A.8.24"}
+
+  - id: SEC-MASSASSIGN-01
+    title: Mass assignment / over-posting
+    intent: >
+      A request body is bound wholesale to a model, letting a caller set fields
+      they should not control (role, isAdmin, balance, ownerId).
+    consumes:
+      signals: [authz/mass_assignment]
+    procedure:
+      - Open the candidate cite.
+      - Confirm the whole request body is passed to a model create/update.
+      - Confirm no allow-list (pick/DTO/serializer field set) constrains the fields.
+      - Confirm a privileged field is actually settable this way.
+    false_positive_guards:
+      - A DTO / serializer / explicit field pick restricts assignable fields.
+      - The model has no sensitive/privileged fields.
+    evidence_required: [code_anchor]
+    severity_default: high
+    severity_criteria: blocker if a privilege/money field is settable; else high.
+    standard_map:
+      - {standard: OWASP-TOP10, clause: "A08:2021"}
+
+  - id: SEC-RATELIMIT-01
+    title: Missing rate limiting on an abuse-prone route
+    intent: >
+      An authentication, OTP, payment, or search route has no rate limiting,
+      enabling brute force / enumeration / cost abuse.
+    consumes:
+      routes: [any]
+    procedure:
+      - Identify abuse-prone routes (login, password reset, OTP, payment, search).
+      - Confirm no rate-limit middleware/guard applies (globally or per route).
+    false_positive_guards:
+      - A global rate limiter is mounted upstream (trace it).
+      - Limiting is enforced at the gateway/proxy layer documented in config.
+    evidence_required: [code_anchor]
+    severity_default: medium
+    severity_criteria: high on auth/OTP routes; medium elsewhere.
+    standard_map:
+      - {standard: OWASP-TOP10, clause: "A04:2021"}
+
+  - id: SEC-DESERIAL-01
+    title: Insecure deserialization
+    intent: >
+      Untrusted input is deserialized with an unsafe loader (pickle, yaml.load,
+      Java native, unsigned tokens), allowing object injection.
+    consumes:
+      signals: [injection/eval]
+    procedure:
+      - Locate unsafe deserialization of external input (pickle.loads, yaml.load
+        without SafeLoader, native readObject, unsigned JWT/verify:false).
+      - Confirm the input crosses a trust boundary.
+    false_positive_guards:
+      - A safe loader is used (yaml.safe_load, signed+verified tokens).
+      - Input originates only from trusted internal state.
+    evidence_required: [code_anchor]
+    severity_default: high
+    severity_criteria: blocker if it yields RCE; else high.
+    standard_map:
+      - {standard: OWASP-TOP10, clause: "A08:2021"}
