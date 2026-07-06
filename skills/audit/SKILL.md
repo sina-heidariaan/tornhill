@@ -72,9 +72,18 @@ no catalog file → its findings map as `unmapped` (never guessed).
 
 ### 3. Enumerate routes + scan candidate signals (deterministic, ~0 tokens)
 
+> **Scratch dir** — intermediate JSON goes to `tornhill/.cache/` (a project-relative
+> path that resolves identically in bash and Python on every OS). **Do not use `/tmp`**:
+> on Windows, bash maps `/tmp` to `%TEMP%` but Python reads it as `C:\tmp`, so the
+> scripts can't find files the redirects wrote.
+>
+> **Cost** — the deterministic miners are ~0 tokens; the spend is the LLM detection
+> pass (one rule at a time). A `deep` audit scales higher — tell the user first.
+
 ```bash
-python ${CLAUDE_PLUGIN_ROOT}/scripts/tornhill-mine-routes.py <dir> --format json > /tmp/tornhill-routes.json
-python ${CLAUDE_PLUGIN_ROOT}/scripts/tornhill-scan-signals.py <dir> --format json > /tmp/tornhill-signals.json
+mkdir -p tornhill/.cache
+python ${CLAUDE_PLUGIN_ROOT}/scripts/tornhill-mine-routes.py <dir> --format json > tornhill/.cache/tornhill-routes.json
+python ${CLAUDE_PLUGIN_ROOT}/scripts/tornhill-scan-signals.py <dir> --format json > tornhill/.cache/tornhill-signals.json
 ```
 
 `routes.json` (`tornhill.routes/v1`) lists every enumerable endpoint with its
@@ -87,8 +96,8 @@ Then **route the candidates to the isolated rule cards** (the engine's core):
 
 ```bash
 python ${CLAUDE_PLUGIN_ROOT}/scripts/tornhill-route-rules.py --pack audit_pack \
-  --signals /tmp/tornhill-signals.json --routes /tmp/tornhill-routes.json \
-  --risk /tmp/tornhill-risk.json --format json > /tmp/tornhill-ruleplan.json
+  --signals tornhill/.cache/tornhill-signals.json --routes tornhill/.cache/tornhill-routes.json \
+  --risk tornhill/.cache/tornhill-risk.json --format json > tornhill/.cache/tornhill-ruleplan.json
 ```
 
 `ruleplan.json` (`tornhill.ruleplan/v1`) is a list of per-rule work packets, each

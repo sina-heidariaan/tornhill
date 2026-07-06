@@ -70,11 +70,22 @@ One blueprint per runtime project. If the repo holds several, ask which.
 
 ## Pipeline
 
+> **Scratch dir** — intermediate JSON goes to `tornhill/.cache/` (a project-relative
+> path that resolves identically in bash and Python on every OS). Create it once
+> before the first write: `mkdir -p tornhill/.cache`. **Do not use `/tmp`** — on
+> Windows, bash maps `/tmp` to `%TEMP%` but Python reads it as `C:\tmp`, so the
+> scripts can't find files the redirects wrote.
+>
+> **Cost** — a full run typically spends a few thousand tokens (the deterministic
+> miners are ~0; the spend is the LLM critique + flow tracing). `deep` mode and the
+> per-rule protocol scale higher. Tell the user before a large or `deep` run.
+
 1. **Discover** — runtime units, entrypoints, stack (cheap recon, parallel).
 2. **Derive structure** — build the module graph. Always run the deterministic
    Tier-0 miner (works with no special tooling, ~0 tokens):
    ```bash
-   python ${CLAUDE_PLUGIN_ROOT}/scripts/tornhill-mine-graph.py <dir> --module-depth 2 --format json > /tmp/tornhill-graph.json
+   mkdir -p tornhill/.cache
+   python ${CLAUDE_PLUGIN_ROOT}/scripts/tornhill-mine-graph.py <dir> --module-depth 2 --format json > tornhill/.cache/tornhill-graph.json
    python ${CLAUDE_PLUGIN_ROOT}/scripts/tornhill-mine-graph.py <dir> --module-depth 2 --format mermaid   # the L3 flowchart
    ```
    The `mermaid` output IS the `## L3 — Components` diagram (degree-weighted,
@@ -85,18 +96,18 @@ One blueprint per runtime project. If the repo holds several, ask which.
 3. **Mine git** — the deterministic differentiator (use the **same `--module-depth`**
    as step 2; a high `--top` so module churn sums aren't truncated):
    ```bash
-   python ${CLAUDE_PLUGIN_ROOT}/scripts/tornhill-mine-git.py <dir> --module-depth 2 --top 1000 --format json > /tmp/tornhill-git.json
+   python ${CLAUDE_PLUGIN_ROOT}/scripts/tornhill-mine-git.py <dir> --module-depth 2 --top 1000 --format json > tornhill/.cache/tornhill-git.json
    ```
    (churn, co_change, growth, fix_hotspots.) Then **join** churn × centrality
    deterministically:
    ```bash
-   python ${CLAUDE_PLUGIN_ROOT}/scripts/tornhill-join-risk.py --git /tmp/tornhill-git.json --graph /tmp/tornhill-graph.json --format json > /tmp/tornhill-risk.json
+   python ${CLAUDE_PLUGIN_ROOT}/scripts/tornhill-join-risk.py --git tornhill/.cache/tornhill-git.json --graph tornhill/.cache/tornhill-graph.json --format json > tornhill/.cache/tornhill-risk.json
    ```
 4. **Scan pain signals** (optional but recommended for the perf/efficiency/
    correctness rules) —
    deterministic candidate sinks the critique layer confirms or drops:
    ```bash
-   python ${CLAUDE_PLUGIN_ROOT}/scripts/tornhill-scan-signals.py <dir> --families cost,perf,correctness --format json > /tmp/tornhill-signals.json
+   python ${CLAUDE_PLUGIN_ROOT}/scripts/tornhill-scan-signals.py <dir> --families cost,perf,correctness --format json > tornhill/.cache/tornhill-signals.json
    ```
 5. **Select flows** — rank entrypoints by reach; tag auth / money / external /
    state-mutating paths. **Propose a shortlist; the user pins / excludes.**
@@ -105,9 +116,9 @@ One blueprint per runtime project. If the repo holds several, ask which.
    deterministically, then confirm each rule *in isolation*:
    ```bash
    python ${CLAUDE_PLUGIN_ROOT}/scripts/tornhill-route-rules.py --pack arch_pack \
-     --signals /tmp/tornhill-signals.json --graph /tmp/tornhill-graph.json \
-     --git /tmp/tornhill-git.json --risk /tmp/tornhill-risk.json \
-     --format json > /tmp/tornhill-ruleplan.json
+     --signals tornhill/.cache/tornhill-signals.json --graph tornhill/.cache/tornhill-graph.json \
+     --git tornhill/.cache/tornhill-git.json --risk tornhill/.cache/tornhill-risk.json \
+     --format json > tornhill/.cache/tornhill-ruleplan.json
    ```
    `ruleplan.json` (`tornhill.ruleplan/v1`) is a list of per-rule work packets, each
    carrying ONLY that rule's routed evidence. **Walk it one rule at a time** — see
@@ -131,7 +142,7 @@ steps 1–7 (it needs `tornhill-risk.json` + git signals).
    **The user pins 1–3.** Only pinned scopes get L4.
 3. **Mine symbols, scoped** — for each pinned module prefix:
    ```bash
-   python ${CLAUDE_PLUGIN_ROOT}/scripts/tornhill-mine-symbols.py <dir> --scope <module-path> --format json > /tmp/tornhill-symbols-<n>.json
+   python ${CLAUDE_PLUGIN_ROOT}/scripts/tornhill-mine-symbols.py <dir> --scope <module-path> --format json > tornhill/.cache/tornhill-symbols-<n>.json
    python ${CLAUDE_PLUGIN_ROOT}/scripts/tornhill-mine-symbols.py <dir> --scope <module-path> --format mermaid   # the L4 flowchart
    ```
    This parses **only files under the scope**, so L4 cannot escape the risk zone.
@@ -139,7 +150,7 @@ steps 1–7 (it needs `tornhill-risk.json` + git signals).
    counted; `centrality_quality:"approx"`.
 4. **Run the per-rule analysis protocol** (below) inside the scope so the deep dive
    reports concrete pains ("this function — `path:line` — has issue Y"), each cited.
-   Re-route with `--graph /tmp/tornhill-symbols-<n>.json` so the perf/efficiency/
+   Re-route with `--graph tornhill/.cache/tornhill-symbols-<n>.json` so the perf/efficiency/
    correctness rules see the scoped symbols.
 5. **Render** a `## Deep dive — <module>` section per pinned scope: the L4
    `flowchart` + a detailed `sequenceDiagram` (every step cites a mined symbol).
