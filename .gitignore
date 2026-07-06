@@ -11,6 +11,9 @@ Thumbs.db
 # Generated blueprints in consuming projects (keep examples/ committed)
 /tornhill/
 
+# Skill scratch dir for intermediate JSON (any location)
+tornhill/.cache/
+
 # Vendored viewer JS (populate with: python scripts/tornhill-vendor-assets.py)
 /vendor/
 
