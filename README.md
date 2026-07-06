@@ -29,6 +29,40 @@ It ships **two skills**:
 
 ---
 
+## Install
+
+> **Keep Claude Code up to date first** (`claude update`, or reinstall). Older
+> versions reject the plugin source type (*"This plugin uses a source type your
+> Claude Code version does not support"*) and can't show the component summary in
+> the install preview.
+
+**Remote (recommended)** — in Claude Code:
+
+```
+/plugin marketplace add sina-heidariaan/tornhill
+/plugin install tornhill@tornhill
+```
+
+**Local / offline fallback** — works on any recent version, no network needed:
+
+```
+git clone https://github.com/sina-heidariaan/tornhill
+```
+
+then, in Claude Code:
+
+```
+/plugin marketplace add ./tornhill
+/plugin install tornhill@tornhill
+```
+
+Installing adds two skills — **`/tornhill`** and **`/audit`**.
+
+**Requirements:** `git` and Python 3.9+ (stdlib-first). The HTML renderer
+optionally uses `markdown` + `pyyaml`.
+
+---
+
 ## What makes it different
 
 The building blocks have mature prior art — and tornhill stands on their shoulders:
