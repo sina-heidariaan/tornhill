@@ -11,7 +11,10 @@
   "plugins": [
     {
       "name": "tornhill",
-      "source": "./",
+      "source": {
+        "source": "github",
+        "repo": "sina-heidariaan/tornhill"
+      },
       "version": "0.1.0",
       "description": "Two skills: /tornhill (high-altitude architecture view + findings overlay, with a deep per-subsystem mode) and /audit (security · privacy/compliance · legal · cost review grounded in real, named standards)."
     }
